@@ -35,6 +35,9 @@ class DatabaseManager:
         # Cliente principal (anon key)
         try:
             self.client: Client = create_client(self.supabase_url, self.supabase_key)
+            # Testa conexão básica
+            test_result = self.client.table('analyses').select('id').limit(1).execute()
+            logger.info("✅ Conexão com Supabase testada com sucesso")
         except Exception as e:
             logger.error(f"❌ Erro ao criar cliente Supabase: {str(e)}")
             self.available = False
@@ -46,6 +49,7 @@ class DatabaseManager:
         if self.service_role_key:
             try:
                 self.admin_client: Client = create_client(self.supabase_url, self.service_role_key)
+                logger.info("✅ Cliente admin Supabase inicializado")
             except Exception as e:
                 logger.warning(f"⚠️ Erro ao criar cliente admin Supabase: {str(e)}")
                 self.admin_client = self.client
@@ -82,20 +86,20 @@ class DatabaseManager:
                 'nicho': analysis_data.get('segmento', ''),
                 'produto': analysis_data.get('produto', ''),
                 'descricao': analysis_data.get('descricao', ''),
-                'preco': float(analysis_data.get('preco', 0)) if analysis_data.get('preco') else None,
+                'preco': float(analysis_data.get('preco', 0)) if analysis_data.get('preco') and str(analysis_data.get('preco')).replace('.', '').isdigit() else None,
                 'publico': analysis_data.get('publico', ''),
                 'concorrentes': analysis_data.get('concorrentes', ''),
                 'dados_adicionais': analysis_data.get('dados_adicionais', ''),
-                'objetivo_receita': float(analysis_data.get('objetivo_receita', 0)) if analysis_data.get('objetivo_receita') else None,
-                'orcamento_marketing': float(analysis_data.get('orcamento_marketing', 0)) if analysis_data.get('orcamento_marketing') else None,
+                'objetivo_receita': float(analysis_data.get('objetivo_receita', 0)) if analysis_data.get('objetivo_receita') and str(analysis_data.get('objetivo_receita')).replace('.', '').isdigit() else None,
+                'orcamento_marketing': float(analysis_data.get('orcamento_marketing', 0)) if analysis_data.get('orcamento_marketing') and str(analysis_data.get('orcamento_marketing')).replace('.', '').isdigit() else None,
                 'prazo_lancamento': analysis_data.get('prazo_lancamento', ''),
                 'status': analysis_data.get('status', 'completed'),
-                'avatar_data': analysis_data.get('avatar_data'),
-                'positioning_data': analysis_data.get('positioning_data'),
-                'competition_data': analysis_data.get('competition_data'),
-                'marketing_data': analysis_data.get('marketing_data'),
-                'metrics_data': analysis_data.get('metrics_data'),
-                'comprehensive_analysis': analysis_data.get('comprehensive_analysis'),
+                'avatar_data': json.dumps(analysis_data.get('avatar_ultra_detalhado', {}), ensure_ascii=False) if analysis_data.get('avatar_ultra_detalhado') else None,
+                'positioning_data': json.dumps(analysis_data.get('estrategia_posicionamento', {}), ensure_ascii=False) if analysis_data.get('estrategia_posicionamento') else None,
+                'competition_data': json.dumps(analysis_data.get('analise_concorrencia_profunda', {}), ensure_ascii=False) if analysis_data.get('analise_concorrencia_profunda') else None,
+                'marketing_data': json.dumps(analysis_data.get('estrategia_palavras_chave', {}), ensure_ascii=False) if analysis_data.get('estrategia_palavras_chave') else None,
+                'metrics_data': json.dumps(analysis_data.get('metricas_performance', {}), ensure_ascii=False) if analysis_data.get('metricas_performance') else None,
+                'comprehensive_analysis': json.dumps(analysis_data, ensure_ascii=False),
                 'created_at': datetime.now().isoformat(),
                 'updated_at': datetime.now().isoformat()
             }

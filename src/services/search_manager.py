@@ -141,14 +141,20 @@ class SearchManager:
                 'num': min(max_results, 10),
                 'lr': 'lang_pt',
                 'gl': 'br',
-                'safe': 'off',
-                'dateRestrict': 'm6'
+                'safe': 'off'
             }
             
             response = requests.get(url, params=params, headers=self.headers, timeout=15)
             
             if response.status_code == 200:
                 data = response.json()
+                
+                # Verifica se há erro na resposta
+                if 'error' in data:
+                    error_msg = data['error'].get('message', 'Erro desconhecido')
+                    logger.warning(f"⚠️ Google API Error: {error_msg}")
+                    return []
+                
                 results = []
                 
                 for item in data.get('items', []):
@@ -161,8 +167,12 @@ class SearchManager:
                 
                 logger.info(f"✅ Google Search: {len(results)} resultados")
                 return results
+            elif response.status_code == 400:
+                logger.warning(f"⚠️ Google Search: Bad request (400)")
+                return []
             else:
-                raise Exception(f"Google API retornou status {response.status_code}")
+                logger.warning(f"⚠️ Google API retornou status {response.status_code}")
+                return []
                 
         except Exception as e:
             if "quota" in str(e).lower() or "limit" in str(e).lower():
@@ -267,12 +277,22 @@ class SearchManager:
                 
                 for div in result_divs[:max_results]:
                     title_elem = div.find('a', class_='result__a')
-                    snippet_elem = div.find('a', class_='result__snippet')
+                    snippet_elem = div.find('a', class_='result__snippet') or div.find('.result__snippet')
                     
                     if title_elem:
                         title = title_elem.get_text(strip=True)
                         url = title_elem.get('href', '')
                         snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
+                        
+                        # DuckDuckGo às vezes usa URLs redirecionadas
+                        if url.startswith('/l/?uddg='):
+                            import urllib.parse
+                            try:
+                                parsed = urllib.parse.parse_qs(url.split('?')[1])
+                                if 'uddg' in parsed:
+                                    url = urllib.parse.unquote(parsed['uddg'][0])
+                            except:
+                                pass
                         
                         if url and title and url.startswith('http'):
                             results.append({
@@ -286,13 +306,15 @@ class SearchManager:
                 return results
             else:
                 if response.status_code == 202:
-                    logger.warning(f"⚠️ DuckDuckGo retornou status 202")
-                    return [] # Retorna lista vazia para 202, indicando que a busca não foi concluída
+                    logger.warning(f"⚠️ DuckDuckGo retornou status 202 - busca em processamento")
+                    return []
                 else:
-                    raise Exception(f"DuckDuckGo retornou status {response.status_code}")
+                    logger.warning(f"⚠️ DuckDuckGo retornou status {response.status_code}")
+                    return []
                 
         except Exception as e:
-            raise e
+            logger.warning(f"⚠️ Erro no DuckDuckGo: {str(e)}")
+            return []
     
     def _try_fallback_search(self, query: str, max_results: int, exclude: List[str] = None) -> List[Dict[str, Any]]:
         """Tenta usar provedor de fallback para busca"""

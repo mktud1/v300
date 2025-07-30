@@ -339,16 +339,12 @@ class ProductionSearchManager:
                 self.providers[provider]['enabled'] = False
                 return []
             
-            # Valida chaves
-            if len(api_key) < 30 or not api_key.startswith('AIza'):
-                logger.error("❌ GOOGLE_SEARCH_KEY parece inválida")
-                self.providers[provider]['enabled'] = False
-                return []
+            # Valida formato básico das chaves
+            if len(api_key) < 20:
+                logger.warning("⚠️ GOOGLE_SEARCH_KEY pode estar incorreta")
             
-            if ':' not in cse_id or len(cse_id) < 20:
-                logger.error("❌ GOOGLE_CSE_ID parece inválido")
-                self.providers[provider]['enabled'] = False
-                return []
+            if len(cse_id) < 10:
+                logger.warning("⚠️ GOOGLE_CSE_ID pode estar incorreto")
             
             url = "https://www.googleapis.com/customsearch/v1"
             params = {
@@ -358,10 +354,7 @@ class ProductionSearchManager:
                 'num': min(max_results, 10),
                 'lr': 'lang_pt',
                 'gl': 'br',
-                'safe': 'off',
-                'dateRestrict': 'm6',
-                'sort': 'date',
-                'fields': 'items(title,link,snippet,displayLink)'
+                'safe': 'off'
             }
             
             headers = self._get_headers('google')
@@ -383,11 +376,14 @@ class ProductionSearchManager:
                 # Verifica se há erro na resposta
                 if 'error' in data:
                     error_msg = data['error'].get('message', 'Erro desconhecido')
-                    logger.error(f"❌ Google API Error: {error_msg}")
+                    logger.warning(f"⚠️ Google API Error: {error_msg}")
                     
                     # Verifica se é erro de quota
                     if 'quota' in error_msg.lower() or 'limit' in error_msg.lower():
                         self.providers[provider]['quota_reset'] = time.time() + 86400  # 24h
+                        self.providers[provider]['enabled'] = False
+                    elif 'invalid' in error_msg.lower():
+                        logger.error(f"❌ Chaves Google inválidas: {error_msg}")
                         self.providers[provider]['enabled'] = False
                     
                     return []
@@ -410,7 +406,7 @@ class ProductionSearchManager:
                 return results
                 
             elif response.status_code == 403:
-                logger.error("❌ Google API: Acesso negado (403) - Verifique chaves e quotas")
+                logger.warning("⚠️ Google API: Acesso negado (403) - Verifique chaves e quotas")
                 self.providers[provider]['enabled'] = False
                 return []
                 
@@ -419,8 +415,13 @@ class ProductionSearchManager:
                 self.providers[provider]['quota_reset'] = time.time() + 3600
                 return []
                 
+            elif response.status_code == 400:
+                logger.warning(f"⚠️ Google API: Bad request (400) - Verifique configuração")
+                # Não desabilita permanentemente para 400, pode ser problema temporário
+                return []
+                
             else:
-                logger.error(f"❌ Google API: Status {response.status_code}")
+                logger.warning(f"⚠️ Google API: Status {response.status_code}")
                 return []
                 
         except requests.exceptions.Timeout:
